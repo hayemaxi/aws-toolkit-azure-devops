@@ -3,7 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import CloudFormation = require('aws-sdk/clients/cloudformation')
+
+
+import AWS_client_cloudformation = require('@aws-sdk/client-cloudformation');
+import CloudFormation = AWS_client_cloudformation.CloudFormation;
+import DescribeChangeSetCommandOutput = AWS_client_cloudformation.DescribeChangeSetCommandOutput;
+import DescribeChangeSetCommandInput = AWS_client_cloudformation.DescribeChangeSetCommandInput;
+import DeleteChangeSetCommandInput = AWS_client_cloudformation.DeleteChangeSetCommandInput;
 import * as tl from 'azure-pipelines-task-lib/task'
 import {
     captureStackOutputs,
@@ -39,14 +45,14 @@ export class TaskOperations {
                 console.log(tl.loc('ExecutionSkipped', this.taskParameters.changeSetName))
 
                 if (this.taskParameters.deleteEmptyChangeSet) {
-                    const request: CloudFormation.DeleteChangeSetInput = {
+                    const request: DeleteChangeSetCommandInput = {
                         ChangeSetName: this.taskParameters.changeSetName
                     }
                     if (this.taskParameters.stackName) {
                         request.StackName = this.taskParameters.stackName
                     }
 
-                    await this.cloudFormationClient.deleteChangeSet(request).promise()
+                    await this.cloudFormationClient.deleteChangeSet(request)
                     console.log(tl.loc('DeletingChangeSet', this.taskParameters.changeSetName))
                 }
             } else {
@@ -58,7 +64,6 @@ export class TaskOperations {
                         ChangeSetName: this.taskParameters.changeSetName,
                         StackName: this.taskParameters.stackName
                     })
-                    .promise()
 
                 if (waitForUpdate) {
                     await waitForStackUpdate(this.cloudFormationClient, this.taskParameters.stackName)
@@ -91,16 +96,16 @@ export class TaskOperations {
     private async verifyResourcesExist(
         changeSetName: string,
         stackName: string
-    ): Promise<CloudFormation.DescribeChangeSetOutput> {
+    ): Promise<DescribeChangeSetCommandOutput> {
         try {
-            const request: CloudFormation.DescribeChangeSetInput = {
+            const request: DescribeChangeSetCommandInput = {
                 ChangeSetName: changeSetName
             }
             if (stackName) {
                 request.StackName = stackName
             }
 
-            return await this.cloudFormationClient.describeChangeSet(request).promise()
+            return await this.cloudFormationClient.describeChangeSet(request);
         } catch (err) {
             throw new Error(tl.loc('ChangeSetDoesNotExist', changeSetName))
         }

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import Lambda = require('aws-sdk/clients/lambda')
+import { Lambda, InvokeCommandOutput, InvokeCommandInput } from '@aws-sdk/client-lambda'
 import * as tl from 'azure-pipelines-task-lib/task'
 import { TaskParameters } from './TaskParameters'
 
@@ -15,7 +15,7 @@ export class TaskOperations {
 
         console.log(tl.loc('InvokingFunction', this.taskParameters.functionName))
 
-        const params: Lambda.InvocationRequest = {
+        const params: InvokeCommandInput = {
             FunctionName: this.taskParameters.functionName
         }
         if (this.taskParameters.payload) {
@@ -32,7 +32,7 @@ export class TaskOperations {
             params.LogType = this.taskParameters.logType
         }
         try {
-            const data: Lambda.InvocationResponse = await this.lambdaClient.invoke(params).promise()
+            const data: InvokeCommandOutput = await this.lambdaClient.invoke(params)
             let outValue = ''
             if (data.Payload) {
                 outValue = data.Payload.toString()
@@ -66,7 +66,7 @@ export class TaskOperations {
 
     private async verifyResourcesExist(functionName: string): Promise<void> {
         try {
-            await this.lambdaClient.getFunctionConfiguration({ FunctionName: functionName }).promise()
+            await this.lambdaClient.getFunctionConfiguration({ FunctionName: functionName })
         } catch (err) {
             throw new Error(tl.loc('FunctionDoesNotExist', functionName))
         }

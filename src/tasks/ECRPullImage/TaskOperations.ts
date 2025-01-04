@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import * as ECR from 'aws-sdk/clients/ecr'
+import { ECR } from '@aws-sdk/client-ecr'
 import * as tl from 'azure-pipelines-task-lib/task'
 import { DockerHandler } from 'lib/dockerUtils'
 import { getEcrAuthorizationData, loginToRegistry } from 'lib/ecrUtils'

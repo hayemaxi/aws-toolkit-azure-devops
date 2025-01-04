@@ -6,13 +6,8 @@
 import * as tl from 'azure-pipelines-task-lib/task'
 
 import { AWSConnectionParameters, buildConnectionParameters } from 'lib/awsConnectionParameters'
-import { getInputOrEmpty, getInputRequired, getPathInputRequired } from 'lib/vstsUtils'
-
-export const applicationTypeAspNet = 'aspnet'
-export const applicationTypeAspNetCoreForWindows = 'aspnetCoreWindows'
-export const applicationTypeAspNetCoreForLinux = 'aspnetCoreLinux'
-export const applicationTypeS3Archive = 's3'
-export const applicationTypeExistingVersion = 'version'
+import { TaskInput, typedLoc } from 'lib/vstsUtils'
+import { BeanstalkDeployApplicationInput, BeanstalkDeployApplicationMessages } from './types.gen'
 
 export const defaultEventPollingDelaySeconds = 5
 export const maxEventPollingDelaySeconds = 300
@@ -21,7 +16,7 @@ export interface TaskParameters {
     awsConnectionParameters: AWSConnectionParameters
     applicationName: string
     environmentName: string
-    applicationType: string
+    applicationType: BeanstalkDeployApplicationInput['applicationType']
     versionLabel: string
     webDeploymentArchive: string
     dotnetPublishPath: string
@@ -33,50 +28,45 @@ export interface TaskParameters {
 }
 
 export function buildTaskParameters(): TaskParameters {
+    const taskInput = new TaskInput<BeanstalkDeployApplicationInput>()
     const parameters: TaskParameters = {
         awsConnectionParameters: buildConnectionParameters(),
-        applicationName: getInputRequired('applicationName'),
-        environmentName: getInputRequired('environmentName'),
-        applicationType: getInputRequired('applicationType'),
+        applicationName: taskInput.getInputRequired('applicationName'),
+        environmentName: taskInput.getInputRequired('environmentName'),
+        applicationType: taskInput.getInputRequired('applicationType'),
         versionLabel: '',
         webDeploymentArchive: '',
         dotnetPublishPath: '',
         deploymentBundleBucket: '',
         deploymentBundleKey: '',
-        description: getInputOrEmpty('description'),
-        outputVariable: getInputOrEmpty('outputVariable'),
+        description: taskInput.getInputOrEmpty('description'),
+        outputVariable: taskInput.getInputOrEmpty('outputVariable'),
         eventPollingDelay: defaultEventPollingDelaySeconds
     }
 
     console.log(tl.loc('DisplayApplicationType', parameters.applicationType))
 
     switch (parameters.applicationType) {
-        case applicationTypeAspNet:
-            parameters.webDeploymentArchive = getPathInputRequired('webDeploymentArchive')
+        case 'aspnet':
+            parameters.webDeploymentArchive = taskInput.getPathInputRequired('webDeploymentArchive')
             break
-
-        case applicationTypeAspNetCoreForWindows:
-        case applicationTypeAspNetCoreForLinux:
-            parameters.dotnetPublishPath = getPathInputRequired('dotnetPublishPath')
+        case 'aspnetCoreWindows':
+        case 'aspnetCoreLinux':
+            parameters.dotnetPublishPath = taskInput.getPathInputRequired('dotnetPublishPath')
             break
-
-        case applicationTypeS3Archive:
-            parameters.deploymentBundleBucket = getInputRequired('deploymentBundleBucket')
-            parameters.deploymentBundleKey = getInputRequired('deploymentBundleKey')
+        case 's3':
+            parameters.deploymentBundleBucket = taskInput.getInputRequired('deploymentBundleBucket')
+            parameters.deploymentBundleKey = taskInput.getInputRequired('deploymentBundleKey')
             break
-
+        case 'version':
+            parameters.versionLabel = taskInput.getInputRequired('versionLabel')
+            break
         default:
-            // version label read below
+            parameters.versionLabel = taskInput.getInputOrEmpty('versionLabel')
             break
     }
 
-    if (parameters.applicationType === applicationTypeExistingVersion) {
-        parameters.versionLabel = getInputRequired('versionLabel')
-    } else {
-        parameters.versionLabel = getInputOrEmpty('versionLabel')
-    }
-
-    const pollDelay = tl.getInput('eventPollingDelay', false)
+    const pollDelay = taskInput.getInputOptional('eventPollingDelay')
     if (pollDelay) {
         const pollDelayValue = parseInt(pollDelay, 10)
         if (
@@ -85,7 +75,7 @@ export function buildTaskParameters(): TaskParameters {
             pollDelayValue > maxEventPollingDelaySeconds
         ) {
             console.log(
-                tl.loc('InvalidEventPollDelay', pollDelay, defaultEventPollingDelaySeconds, maxEventPollingDelaySeconds)
+                typedLoc<BeanstalkDeployApplicationMessages>('InvalidEventPollDelay', pollDelay, defaultEventPollingDelaySeconds, maxEventPollingDelaySeconds)
             )
         } else {
             parameters.eventPollingDelay = pollDelayValue

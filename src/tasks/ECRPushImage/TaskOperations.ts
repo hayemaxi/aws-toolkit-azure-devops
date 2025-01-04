@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import ECR = require('aws-sdk/clients/ecr')
+import { ECR } from '@aws-sdk/client-ecr'
 import tl = require('azure-pipelines-task-lib/task')
 import { DockerHandler } from 'lib/dockerUtils'
 import { constructTaggedImageName, getEcrAuthorizationData, loginToRegistry } from 'lib/ecrUtils'
@@ -94,19 +94,15 @@ export class TaskOperations {
         console.log(tl.loc('TestingForRepository', repository))
 
         try {
-            await this.ecrClient
-                .describeRepositories({
-                    repositoryNames: [repository]
-                })
-                .promise()
+            await this.ecrClient.describeRepositories({
+                repositoryNames: [repository]
+            })
         } catch (err) {
-            if (err.code === 'RepositoryNotFoundException') {
+            if (err.name === 'RepositoryNotFoundException') {
                 console.log(tl.loc('CreatingRepository'))
-                await this.ecrClient
-                    .createRepository({
-                        repositoryName: repository
-                    })
-                    .promise()
+                await this.ecrClient.createRepository({
+                    repositoryName: repository
+                })
             } else {
                 throw new Error(`Error testing for repository existence: ${err}`)
             }

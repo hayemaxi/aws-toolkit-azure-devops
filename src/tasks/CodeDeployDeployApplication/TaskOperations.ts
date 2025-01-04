@@ -253,6 +253,8 @@ export class TaskOperations {
             console.log(tl.loc('WaitingForDeployment'))
 
             const params: any = this.setWaiterParams(deploymentId, timeout)
+            // Waiters with callbacks are not supported in AWS SDK for JavaScript (v3).
+            // Please convert to `await client.waitFor(state, params).promise()`, and re-run aws-sdk-js-codemod.
             this.codeDeployClient.waitFor('deploymentSuccessful', params, function(
                 err: AWSError,
                 data: CodeDeploy.GetDeploymentOutput
@@ -264,7 +266,7 @@ export class TaskOperations {
                     resolve()
                 }
             })
-        })
+        });
     }
 
     private setWaiterParams(deploymentId: string, timeout: number): any {

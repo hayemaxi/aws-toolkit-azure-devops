@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import SSM = require('aws-sdk/clients/ssm')
+
+
+import AWS_client_ssm = require('@aws-sdk/client-ssm');
+import SSM = AWS_client_ssm.SSM;
+import PutParameterCommandInput = AWS_client_ssm.PutParameterCommandInput;
 import tl = require('azure-pipelines-task-lib/task')
 import { secureStringType, TaskParameters } from './TaskParameters'
 
@@ -23,7 +27,7 @@ export class TaskOperations {
 
     private async createOrUpdateParameter(forceAsSecureString: boolean): Promise<void> {
         try {
-            const parameters: SSM.PutParameterRequest = {
+            const parameters: PutParameterCommandInput = {
                 Name: this.taskParameters.parameterName,
                 Type: forceAsSecureString ? secureStringType : this.taskParameters.parameterType,
                 Value: this.taskParameters.parameterValue,
@@ -32,7 +36,7 @@ export class TaskOperations {
             if (this.taskParameters.encryptionKeyId) {
                 parameters.KeyId = this.taskParameters.encryptionKeyId
             }
-            await this.ssmClient.putParameter(parameters).promise()
+            await this.ssmClient.putParameter(parameters)
         } catch (error) {
             throw new Error(tl.loc('CreateOrUpdateFailed', error))
         }
@@ -46,7 +50,6 @@ export class TaskOperations {
                 .getParameter({
                     Name: parameterName
                 })
-                .promise()
 
             if (response.Parameter) {
                 result = response.Parameter.Type === secureStringType
@@ -58,7 +61,7 @@ export class TaskOperations {
                 console.log(tl.loc('ParameterExistsAndIsNotSecureString', parameterName))
             }
         } catch (error) {
-            if (error.code === 'ParameterNotFound') {
+            if (error.name === 'ParameterNotFound') {
                 console.log(tl.loc('ParameterDoesNotExist', parameterName))
             } else {
                 throw new Error(tl.loc('ErrorTestingParameter', error))

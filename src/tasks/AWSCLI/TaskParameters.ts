@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-import * as tl from 'azure-pipelines-task-lib/task'
 import { AWSConnectionParameters, buildConnectionParameters } from 'lib/awsConnectionParameters'
-import { getInputOrEmpty, getInputRequired } from 'lib/vstsUtils'
+import { TaskInput } from 'lib/vstsUtils'
+import { AWSCLIInput } from './types.gen'
 
 export interface TaskParameters {
     awsConnectionParameters: AWSConnectionParameters
@@ -16,12 +16,13 @@ export interface TaskParameters {
 }
 
 export function buildTaskParameters(): TaskParameters {
+    const taskInput = new TaskInput<AWSCLIInput>()
     const parameters: TaskParameters = {
         awsConnectionParameters: buildConnectionParameters(),
-        awsCliCommand: getInputRequired('awsCommand'),
-        awsCliSubCommand: getInputRequired('awsSubCommand'),
-        awsCliParameters: getInputOrEmpty('awsArguments'),
-        failOnStandardError: tl.getBoolInput('failOnStandardError')
+        awsCliCommand: taskInput.getInputRequired('awsCommand'),
+        awsCliSubCommand: taskInput.getInputRequired('awsSubCommand'),
+        awsCliParameters: taskInput.getInputOrEmpty('awsArguments'),
+        failOnStandardError: taskInput.getBoolInputOptional('failOnStandardError')
     }
 
     return parameters

@@ -3,17 +3,14 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { getBoolInput } from 'azure-pipelines-task-lib/task'
 import { AWSConnectionParameters, buildConnectionParameters } from 'lib/awsConnectionParameters'
-import { getInputOrEmpty, getInputRequired, getPathInputRequired, getPathInputRequiredCheck } from 'lib/vstsUtils'
-
-export const inlineScriptType = 'inline'
-export const fileScriptType = 'filePath'
+import { TaskInput } from 'lib/vstsUtils'
+import { AWSShellScriptInput } from './types.gen'
 
 export interface TaskParameters {
     awsConnectionParameters: AWSConnectionParameters
     arguments: string
-    scriptType: string
+    scriptType: AWSShellScriptInput['scriptType']
     filePath: string
     inlineScript: string
     disableAutoCwd: boolean
@@ -22,25 +19,26 @@ export interface TaskParameters {
 }
 
 export function buildTaskParameters(): TaskParameters {
+    const taskInput = new TaskInput<AWSShellScriptInput>()
     const parameters: TaskParameters = {
         awsConnectionParameters: buildConnectionParameters(),
-        arguments: getInputOrEmpty('arguments'),
-        scriptType: getInputRequired('scriptType'),
+        arguments: taskInput.getInputOrEmpty('arguments'),
+        scriptType: taskInput.getInputRequired('scriptType'),
         filePath: '',
         inlineScript: '',
-        disableAutoCwd: getBoolInput('disableAutoCwd', false),
+        disableAutoCwd: taskInput.getBoolInputOptional('disableAutoCwd'),
         workingDirectory: '',
-        failOnStandardError: getBoolInput('failOnStandardError', false)
+        failOnStandardError: taskInput.getBoolInputOptional('failOnStandardError')
     }
 
-    if (parameters.scriptType === fileScriptType) {
-        parameters.filePath = getPathInputRequiredCheck('filePath')
+    if (parameters.scriptType === 'filePath') {
+        parameters.filePath = taskInput.getPathInputRequiredCheck('filePath')
     } else {
-        parameters.inlineScript = getInputRequired('inlineScript')
+        parameters.inlineScript = taskInput.getInputRequired('inlineScript')
     }
 
     if (parameters.disableAutoCwd) {
-        parameters.workingDirectory = getPathInputRequired('workingDirectory')
+        parameters.workingDirectory = taskInput.getPathInputRequired('workingDirectory')
     }
 
     return parameters

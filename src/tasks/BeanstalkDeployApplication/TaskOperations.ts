@@ -4,18 +4,20 @@
  */
 
 import * as tl from 'azure-pipelines-task-lib/task'
-
-import { ElasticBeanstalk, S3 } from 'aws-sdk/clients/all'
+import {
+    CreateApplicationVersionCommandInput,
+    DescribeEnvironmentsCommandInput,
+    DescribeEventsCommandInput,
+    ElasticBeanstalk,
+    S3Location,
+    UpdateEnvironmentCommandInput,
+    EnvironmentDescription
+} from '@aws-sdk/client-elastic-beanstalk'
+import { S3 } from '@aws-sdk/client-s3'
 import { BeanstalkUtils } from 'lib/beanstalkUtils'
 import { SdkUtils } from 'lib/sdkutils'
 import { basename } from 'path'
-import {
-    applicationTypeAspNet,
-    applicationTypeAspNetCoreForWindows,
-    applicationTypeAspNetCoreForLinux,
-    applicationTypeExistingVersion,
-    TaskParameters
-} from './TaskParameters'
+import { TaskParameters } from './TaskParameters'
 
 export class TaskOperations {
     public constructor(
@@ -38,25 +40,26 @@ export class TaskOperations {
         let s3Key: string
 
         if (
-            this.taskParameters.applicationType === applicationTypeAspNet ||
-            this.taskParameters.applicationType === applicationTypeAspNetCoreForWindows ||
-            this.taskParameters.applicationType === applicationTypeAspNetCoreForLinux
+            this.taskParameters.applicationType === 'aspnet' ||
+            this.taskParameters.applicationType === 'aspnetCoreWindows' ||
+            this.taskParameters.applicationType === 'aspnetCoreLinux'
         ) {
             s3Bucket = await BeanstalkUtils.determineS3Bucket(this.beanstalkClient)
             let deploymentBundle: string
-            if (this.taskParameters.applicationType === applicationTypeAspNetCoreForWindows) {
+            if (this.taskParameters.applicationType === 'aspnetCoreWindows') {
                 const tempDirectory = SdkUtils.getTempLocation()
                 deploymentBundle = await BeanstalkUtils.prepareAspNetCoreBundleWindows(
                     this.taskParameters.dotnetPublishPath,
                     tempDirectory
                 )
-            } else if (this.taskParameters.applicationType === applicationTypeAspNetCoreForLinux) {
+            } else if (this.taskParameters.applicationType === 'aspnetCoreLinux') {
                 const tempDirectory = SdkUtils.getTempLocation()
                 deploymentBundle = await BeanstalkUtils.prepareAspNetCoreBundleLinux(
                     this.taskParameters.dotnetPublishPath,
                     tempDirectory
                 )
             } else {
+                // === 'aspnet'
                 deploymentBundle = this.taskParameters.webDeploymentArchive
             }
 
@@ -83,7 +86,7 @@ export class TaskOperations {
             this.taskParameters.environmentName,
             versionLabel,
             this.taskParameters.description,
-            this.taskParameters.applicationType === applicationTypeExistingVersion
+            this.taskParameters.applicationType === 'version'
         )
 
         await this.waitForDeploymentCompletion(
@@ -111,12 +114,12 @@ export class TaskOperations {
         isExistingVersion: boolean
     ): Promise<void> {
         if (!isExistingVersion) {
-            const sourceBundle: ElasticBeanstalk.S3Location = {
+            const sourceBundle: S3Location = {
                 S3Bucket: bucketName,
                 S3Key: key
             }
 
-            const versionRequest: ElasticBeanstalk.CreateApplicationVersionMessage = {
+            const versionRequest: CreateApplicationVersionCommandInput = {
                 ApplicationName: application,
                 VersionLabel: versionLabel,
                 SourceBundle: sourceBundle
@@ -125,7 +128,7 @@ export class TaskOperations {
                 versionRequest.Description = this.taskParameters.description
             }
 
-            await this.beanstalkClient.createApplicationVersion(versionRequest).promise()
+            await this.beanstalkClient.createApplicationVersion(versionRequest)
             if (description) {
                 console.log(
                     tl.loc(
@@ -142,12 +145,12 @@ export class TaskOperations {
             console.log(tl.loc('DeployingExistingVersion', versionLabel))
         }
 
-        const request: ElasticBeanstalk.UpdateEnvironmentMessage = {
+        const request: UpdateEnvironmentCommandInput = {
             ApplicationName: application,
             EnvironmentName: environment,
             VersionLabel: versionLabel
         }
-        await this.beanstalkClient.updateEnvironment(request).promise()
+        await this.beanstalkClient.updateEnvironment(request)
         console.log(tl.loc('StartingApplicationDeployment', request.VersionLabel))
     }
 
@@ -162,12 +165,12 @@ export class TaskOperations {
         // auto-retry ability
         const randomJitterUpperLimit = 5
 
-        const requestEnvironment: ElasticBeanstalk.DescribeEnvironmentsMessage = {
+        const requestEnvironment: DescribeEnvironmentsCommandInput = {
             ApplicationName: applicationName,
             EnvironmentNames: [environmentName]
         }
 
-        const requestEvents: ElasticBeanstalk.DescribeEventsMessage = {
+        const requestEvents: DescribeEventsCommandInput = {
             ApplicationName: applicationName,
             EnvironmentName: environmentName,
             StartTime: startingEventDate
@@ -181,7 +184,7 @@ export class TaskOperations {
         console.log(tl.loc('EventsComing'))
 
         let success = true
-        let environment: ElasticBeanstalk.EnvironmentDescription | undefined
+        let environment: EnvironmentDescription | undefined
 
         // delay the event poll by a random amount, up to 5 seconds, so that if multiple
         // deployments run in parallel they don't all start querying at the same time and
@@ -196,16 +199,14 @@ export class TaskOperations {
             // if any throttling exception escapes the sdk's default retry logic,
             // extend the user's selected poll delay by a random, sub-5 second, amount
             try {
-                const responseEnvironments = await this.beanstalkClient
-                    .describeEnvironments(requestEnvironment)
-                    .promise()
+                const responseEnvironments = await this.beanstalkClient.describeEnvironments(requestEnvironment)
                 if (!responseEnvironments.Environments || responseEnvironments.Environments.length === 0) {
                     throw new Error(tl.loc('FailedToFindEnvironment'))
                 }
                 environment = responseEnvironments.Environments[0]
 
                 requestEvents.StartTime = lastPrintedEventDate
-                const responseEvent = await this.beanstalkClient.describeEvents(requestEvents).promise()
+                const responseEvent = await this.beanstalkClient.describeEvents(requestEvents)
 
                 if (responseEvent.Events && responseEvent.Events.length > 0) {
                     for (let i = responseEvent.Events.length - 1; i >= 0; i--) {
@@ -227,7 +228,7 @@ export class TaskOperations {
                 }
             } catch (err) {
                 // if we are still encountering throttles, increase the poll delay some more
-                if (err.code === 'Throttling') {
+                if (err.name === 'Throttling') {
                     eventPollDelay += Math.floor(Math.random() * randomJitterUpperLimit) + 1
                     console.log(tl.loc('EventPollWaitExtended', eventPollDelay))
                 } else {
@@ -242,12 +243,12 @@ export class TaskOperations {
     }
 
     private async getLatestEventDate(applicationName: string, environmentName: string): Promise<Date> {
-        const requestEvents: ElasticBeanstalk.DescribeEventsMessage = {
+        const requestEvents: DescribeEventsCommandInput = {
             ApplicationName: applicationName,
             EnvironmentName: environmentName
         }
 
-        const response = await this.beanstalkClient.describeEvents(requestEvents).promise()
+        const response = await this.beanstalkClient.describeEvents(requestEvents)
         if (!response.Events || response.Events.length === 0 || !response.Events[0].EventDate) {
             return new Date()
         }

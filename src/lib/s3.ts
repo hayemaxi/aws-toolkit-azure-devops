@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { S3 } from 'aws-sdk/clients/all'
+import { S3 } from '@aws-sdk/client-s3'
 
 export async function testBucketExists(s3Client: S3, bucketName: string): Promise<boolean> {
     try {
-        await s3Client.headBucket({ Bucket: bucketName }).promise()
+        await s3Client.headBucket({ Bucket: bucketName })
 
         return true
     } catch (err) {

@@ -4,7 +4,22 @@
  */
 
 import CloudFormation = require('aws-sdk/clients/cloudformation')
-import { AWSError } from 'aws-sdk/lib/error'
+import { ServiceException } from '@smithy/smithy-client';
+
+import {
+    CloudFormation,
+    CreateChangeSetCommandInput,
+    CreateChangeSetCommandOutput,
+    CreateStackCommandInput,
+    CreateStackCommandOutput,
+    Parameter,
+    RollbackTrigger,
+    UpdateStackCommandInput,
+    waitUntilChangeSetCreateComplete,
+} from '@aws-sdk/client-cloudformation';
+
+import { Upload } from '@aws-sdk/lib-storage';
+import { S3 } from '@aws-sdk/client-s3';
 import S3 = require('aws-sdk/clients/s3')
 import * as tl from 'azure-pipelines-task-lib/task'
 import {
@@ -88,7 +103,7 @@ export class TaskOperations {
     }
 
     private async createStack(): Promise<string> {
-        const request: CloudFormation.CreateStackInput = {
+        const request: CreateStackCommandInput = {
             StackName: this.taskParameters.stackName,
             OnFailure: this.taskParameters.onFailure,
             RoleARN: this.taskParameters.roleARN
@@ -142,9 +157,8 @@ export class TaskOperations {
         }
 
         try {
-            const response: CloudFormation.CreateStackOutput = await this.cloudFormationClient
+            const response: CreateStackCommandOutput = await this.cloudFormationClient
                 .createStack(request)
-                .promise()
             tl.debug(`Stack id ${response.StackId}`)
             await waitForStackCreation(this.cloudFormationClient, request.StackName, this.taskParameters.timeoutInMins)
 
@@ -162,7 +176,7 @@ export class TaskOperations {
     private async updateStack(): Promise<void> {
         console.log(tl.loc('UpdateStack', this.taskParameters.templateFile))
 
-        const request: CloudFormation.UpdateStackInput = {
+        const request: UpdateStackCommandInput = {
             StackName: this.taskParameters.stackName,
             RoleARN: this.taskParameters.roleARN
         }
@@ -224,10 +238,10 @@ export class TaskOperations {
         }
 
         try {
-            await this.cloudFormationClient.updateStack(request).promise()
+            await this.cloudFormationClient.updateStack(request)
             await waitForStackUpdate(this.cloudFormationClient, request.StackName, this.taskParameters.timeoutInMins)
         } catch (err) {
-            const e = <AWSError>err
+            const e = <ServiceException>err
             if (isNoWorkToDoValidationError(e.code, e.message)) {
                 if (this.taskParameters.warnWhenNoWorkNeeded) {
                     tl.warning(tl.loc('NoWorkToDo'))
@@ -251,7 +265,7 @@ export class TaskOperations {
             await this.deleteExistingChangeSet(this.taskParameters.changeSetName, this.taskParameters.stackName)
         }
 
-        const request: CloudFormation.CreateChangeSetInput = {
+        const request: CreateChangeSetCommandInput = {
             ChangeSetName: this.taskParameters.changeSetName,
             ChangeSetType: changesetType,
             StackName: this.taskParameters.stackName,
@@ -315,9 +329,8 @@ export class TaskOperations {
             // note that we can create a change set with no changes, but when we wait for completion it's then
             // that we get a validation failure, which we check for inside waitForChangeSetCreation
             console.log(tl.loc('CreatingChangeSet', changesetType, this.taskParameters.changeSetName))
-            const response: CloudFormation.CreateChangeSetOutput = await this.cloudFormationClient
+            const response: CreateChangeSetCommandOutput = await this.cloudFormationClient
                 .createChangeSet(request)
-                .promise()
 
             tl.debug(`Change set id ${response.Id}, stack id ${response.StackId}`)
             const changesToApply = await this.waitForChangeSetCreation(request.ChangeSetName, request.StackName)
@@ -336,8 +349,8 @@ export class TaskOperations {
         }
     }
 
-    private constructRollbackTriggerCollection(rollbackTriggerArns: string[]): CloudFormation.RollbackTrigger[] {
-        const triggers: CloudFormation.RollbackTrigger[] = []
+    private constructRollbackTriggerCollection(rollbackTriggerArns: string[]): RollbackTrigger[] {
+        const triggers: RollbackTrigger[] = []
 
         rollbackTriggerArns.forEach(rta => {
             console.log(tl.loc('AddingRollbackTrigger', rta))
@@ -362,7 +375,6 @@ export class TaskOperations {
                     ChangeSetName: changeSetName,
                     StackName: stackName
                 })
-                .promise()
 
             if (await testStackHasResources(this.cloudFormationClient, stackName)) {
                 await waitForStackUpdate(this.cloudFormationClient, stackName, this.taskParameters.timeoutInMins)
@@ -380,7 +392,6 @@ export class TaskOperations {
             console.log(tl.loc('DeletingExistingChangeSet', changeSetName, stackName))
             await this.cloudFormationClient
                 .deleteChangeSet({ ChangeSetName: changeSetName, StackName: stackName })
-                .promise()
         } catch (err) {
             throw new Error(tl.loc('FailedToDeleteChangeSet', (err as Error).message))
         }
@@ -451,13 +462,16 @@ export class TaskOperations {
 
         console.log(tl.loc('UploadingTemplate', templateFile, objectKey, s3BucketName))
         try {
-            await this.s3Client
-                .upload({
-                    Bucket: s3BucketName,
-                    Key: objectKey,
-                    Body: fileBuffer
-                })
-                .promise()
+            await new Upload({
+                client: this.s3Client,
+
+                params: {
+                        Bucket: s3BucketName,
+                        Key: objectKey,
+                        Body: fileBuffer
+                    }
+            })
+                .done()
 
             const templateUrl = await SdkUtils.getPresignedUrl(this.s3Client, 'getObject', s3BucketName, objectKey)
 
@@ -467,8 +481,8 @@ export class TaskOperations {
         }
     }
 
-    private loadTemplateParameters(): CloudFormation.Parameters | undefined {
-        let parsedParameters: CloudFormation.Parameters | undefined
+    private loadTemplateParameters(): Array<Parameter> | undefined {
+        let parsedParameters: Array<Parameter> | undefined
 
         switch (this.taskParameters.templateParametersSource) {
             case loadTemplateParametersFromFile:
@@ -492,7 +506,7 @@ export class TaskOperations {
         return parsedParameters
     }
 
-    private loadParametersFromFile(parametersFile: string): CloudFormation.Parameters | undefined {
+    private loadParametersFromFile(parametersFile: string): Array<Parameter> | undefined {
         if (!parametersFile) {
             console.log(tl.loc('NoParametersFileSpecified'))
 
@@ -510,15 +524,15 @@ export class TaskOperations {
         return templateParameters
     }
 
-    private parseParameters(parameters: string): CloudFormation.Parameters {
-        let templateParameters: CloudFormation.Parameters
+    private parseParameters(parameters: string): Array<Parameter> {
+        let templateParameters: Array<Parameter>
         try {
             tl.debug('Attempting parse as json content')
-            templateParameters = JSON.parse(parameters) as CloudFormation.Parameters
+            templateParameters = JSON.parse(parameters) as Array<Parameter>
         } catch (err) {
             try {
                 tl.debug('Json parse failed, attempting yaml.')
-                templateParameters = yaml.safeLoad(parameters) as CloudFormation.Parameters
+                templateParameters = yaml.safeLoad(parameters) as Array<Parameter>
             } catch (errorYamlLoad) {
                 tl.debug('Yaml parse failed, cannot determine file content format.')
                 throw new Error(tl.loc('ParametersLoadFailed'))
@@ -534,7 +548,10 @@ export class TaskOperations {
         console.log(tl.loc('WaitingForChangeSetValidation', changeSetName, stackName))
         try {
             const params: any = setWaiterParams(stackName, this.taskParameters.timeoutInMins, changeSetName)
-            await this.cloudFormationClient.waitFor('changeSetCreateComplete', params).promise()
+            await waitUntilChangeSetCreateComplete({
+                client: this.cloudFormationClient,
+                maxWaitTime: 200
+            }, params)
             console.log(tl.loc('ChangeSetValidated'))
         } catch (err) {
             // Inspect to see if the error was down to the service reporting (as an exception trapped
@@ -544,7 +561,6 @@ export class TaskOperations {
             // https://github.com/aws/aws-toolkit-azure-devops/issues/28
             const response = await this.cloudFormationClient
                 .describeChangeSet({ ChangeSetName: changeSetName, StackName: stackName })
-                .promise()
             if (isNoWorkToDoValidationError(response.Status, response.StatusReason)) {
                 if (this.taskParameters.warnWhenNoWorkNeeded) {
                     tl.warning(tl.loc('NoWorkToDo'))

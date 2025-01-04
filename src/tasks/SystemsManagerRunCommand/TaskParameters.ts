@@ -11,6 +11,14 @@ export const fromInstanceIds = 'fromInstanceIds'
 export const fromTags = 'fromTags'
 export const fromBuildVariable = 'fromBuildVariable'
 
+import taskJson from './task.json';
+import { notificationEventsInput, notificationTypeInput } from './inputTypes.gen'
+const taskJsonConst = {
+    ...taskJson
+} as const;
+
+const inputsConst = [...taskJson.inputs] as const
+
 export interface TaskParameters {
     awsConnectionParameters: AWSConnectionParameters
     documentName: string
@@ -25,8 +33,8 @@ export interface TaskParameters {
     maxErrors: string
     timeout: string
     notificationArn: string | undefined
-    notificationEvents: string | undefined
-    notificationType: string | undefined
+    notificationEvents: notificationEventsInput | undefined
+    notificationType: notificationTypeInput | undefined
     outputS3BucketName: string
     outputS3KeyPrefix: string
     cloudWatchOutputEnabled: boolean;
@@ -46,8 +54,8 @@ export function buildTaskParameters(): TaskParameters {
         maxErrors: getInputOrEmpty('maxErrors'),
         timeout: getInputOrEmpty('timeout'),
         notificationArn: getInputOptional('notificationArn'),
-        notificationEvents: getInputOptional('notificationEvents'),
-        notificationType: getInputOptional('notificationType'),
+        notificationEvents: getInputOptional('notificationEvents') as notificationEventsInput,
+        notificationType: getInputOptional('notificationType') as notificationTypeInput,
         outputS3BucketName: getInputOrEmpty('outputS3BucketName'),
         outputS3KeyPrefix: getInputOrEmpty('outputS3KeyPrefix'),
         cloudWatchOutputEnabled: tl.getBoolInput('cloudWatchOutputEnabled'),

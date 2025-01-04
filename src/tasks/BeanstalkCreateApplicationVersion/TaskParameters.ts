@@ -4,17 +4,13 @@
  */
 
 import { AWSConnectionParameters, buildConnectionParameters } from 'lib/awsConnectionParameters'
-import { getInputOrEmpty, getInputRequired, getPathInputRequired } from 'lib/vstsUtils'
-
-export const applicationTypeAspNet = 'aspnet'
-export const applicationTypeAspNetCoreForWindows = 'aspnetCoreWindows'
-export const applicationTypeAspNetCoreForLinux = 'aspnetCoreLinux'
-export const applicationTypeS3Archive = 's3'
+import { TaskInput } from 'lib/vstsUtils'
+import { BeanstalkCreateApplicationVersionInput } from './types.gen'
 
 export interface TaskParameters {
     awsConnectionParameters: AWSConnectionParameters
     applicationName: string
-    applicationType: string
+    applicationType: BeanstalkCreateApplicationVersionInput['applicationType']
     webDeploymentArchive: string
     dotnetPublishPath: string
     deploymentBundleBucket: string
@@ -25,32 +21,33 @@ export interface TaskParameters {
 }
 
 export function buildTaskParameters(): TaskParameters {
+    const taskInput = new TaskInput<BeanstalkCreateApplicationVersionInput>()
     const parameters: TaskParameters = {
         awsConnectionParameters: buildConnectionParameters(),
-        applicationName: getInputRequired('applicationName'),
-        applicationType: getInputRequired('applicationType'),
+        applicationName: taskInput.getInputRequired('applicationName'),
+        applicationType: taskInput.getInputRequired('applicationType'),
         webDeploymentArchive: '',
         dotnetPublishPath: '',
         deploymentBundleBucket: '',
         deploymentBundleKey: '',
-        versionLabel: getInputOrEmpty('versionLabel'),
-        description: getInputOrEmpty('description'),
-        outputVariable: getInputOrEmpty('outputVariable')
+        versionLabel: taskInput.getInputOrEmpty('versionLabel'),
+        description: taskInput.getInputOrEmpty('description'),
+        outputVariable: taskInput.getInputOrEmpty('outputVariable')
     }
 
     switch (parameters.applicationType) {
-        case applicationTypeAspNet:
-            parameters.webDeploymentArchive = getPathInputRequired('webDeploymentArchive')
+        case 'aspnet':
+            parameters.webDeploymentArchive = taskInput.getPathInputRequired('webDeploymentArchive')
             break
 
-        case applicationTypeAspNetCoreForWindows:
-        case applicationTypeAspNetCoreForLinux:
-            parameters.dotnetPublishPath = getPathInputRequired('dotnetPublishPath')
+        case 'aspnetCoreWindows':
+        case 'aspnetCoreLinux':
+            parameters.dotnetPublishPath = taskInput.getPathInputRequired('dotnetPublishPath')
             break
 
-        case applicationTypeS3Archive:
-            parameters.deploymentBundleBucket = getInputRequired('deploymentBundleBucket')
-            parameters.deploymentBundleKey = getInputRequired('deploymentBundleKey')
+        case 's3':
+            parameters.deploymentBundleBucket = taskInput.getInputRequired('deploymentBundleBucket')
+            parameters.deploymentBundleKey = taskInput.getInputRequired('deploymentBundleKey')
             break
     }
 

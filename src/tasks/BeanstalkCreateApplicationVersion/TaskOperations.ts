@@ -3,22 +3,17 @@
  * SPDX-License-Identifier: MIT
  */
 
-import Beanstalk = require('aws-sdk/clients/elasticbeanstalk')
-import S3 = require('aws-sdk/clients/s3')
+import { ElasticBeanstalk, CreateApplicationVersionCommandInput, S3Location } from '@aws-sdk/client-elastic-beanstalk'
+import { S3 } from '@aws-sdk/client-s3'
 import * as tl from 'azure-pipelines-task-lib/task'
 import { BeanstalkUtils } from 'lib/beanstalkUtils'
 import { SdkUtils } from 'lib/sdkutils'
 import path = require('path')
-import {
-    applicationTypeAspNetCoreForWindows,
-    applicationTypeAspNetCoreForLinux,
-    applicationTypeS3Archive,
-    TaskParameters
-} from './TaskParameters'
+import { TaskParameters } from './TaskParameters'
 
 export class TaskOperations {
     public constructor(
-        public readonly beanstalkClient: Beanstalk,
+        public readonly beanstalkClient: ElasticBeanstalk,
         public readonly s3Client: S3,
         public readonly taskParameters: TaskParameters
     ) {}
@@ -31,16 +26,16 @@ export class TaskOperations {
         let s3Bucket: string
         let s3Key: string
 
-        if (this.taskParameters.applicationType !== applicationTypeS3Archive) {
+        if (this.taskParameters.applicationType !== 's3') {
             s3Bucket = await BeanstalkUtils.determineS3Bucket(this.beanstalkClient)
             let deploymentBundle: string
-            if (this.taskParameters.applicationType === applicationTypeAspNetCoreForWindows) {
+            if (this.taskParameters.applicationType === 'aspnetCoreWindows') {
                 const tempDirectory = SdkUtils.getTempLocation()
                 deploymentBundle = await BeanstalkUtils.prepareAspNetCoreBundleWindows(
                     this.taskParameters.dotnetPublishPath,
                     tempDirectory
                 )
-            } else if (this.taskParameters.applicationType === applicationTypeAspNetCoreForLinux) {
+            } else if (this.taskParameters.applicationType === 'aspnetCoreLinux') {
                 const tempDirectory = SdkUtils.getTempLocation()
                 deploymentBundle = await BeanstalkUtils.prepareAspNetCoreBundleLinux(
                     this.taskParameters.dotnetPublishPath,
@@ -60,12 +55,12 @@ export class TaskOperations {
             s3Key = this.taskParameters.deploymentBundleKey
         }
 
-        const sourceBundle: Beanstalk.S3Location = {
+        const sourceBundle: S3Location = {
             S3Bucket: s3Bucket,
             S3Key: s3Key
         }
 
-        const versionRequest: Beanstalk.CreateApplicationVersionMessage = {
+        const versionRequest: CreateApplicationVersionCommandInput = {
             ApplicationName: this.taskParameters.applicationName,
             VersionLabel: versionLabel,
             SourceBundle: sourceBundle
@@ -74,7 +69,7 @@ export class TaskOperations {
             versionRequest.Description = this.taskParameters.description
         }
 
-        await this.beanstalkClient.createApplicationVersion(versionRequest).promise()
+        await this.beanstalkClient.createApplicationVersion(versionRequest)
 
         if (this.taskParameters.description) {
             console.log(

@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { S3 } from 'aws-sdk/clients/all'
+import { S3 } from 'aws-sdk'
+import { GetObjectCommandInput, ListObjectsV2CommandInput, S3 } from '@aws-sdk/client-s3';
 import * as tl from 'azure-pipelines-task-lib/task'
 import * as fs from 'fs'
 import * as mm from 'minimatch'
@@ -63,7 +64,7 @@ export class TaskOperations {
                 }
 
                 console.log(tl.loc('QueueingDownload', matchedKey))
-                const params: S3.GetObjectRequest = {
+                const params: GetObjectCommandInput = {
                     Bucket: this.taskParameters.bucketName,
                     Key: matchedKey
                 }
@@ -80,7 +81,7 @@ export class TaskOperations {
         return Promise.all(allDownloads)
     }
 
-    private async downloadFile(s3Params: S3.GetObjectRequest, dest: string): Promise<void> {
+    private async downloadFile(s3Params: GetObjectCommandInput, dest: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             const isDir = dest.endsWith('/')
             if (isDir) {
@@ -117,13 +118,13 @@ export class TaskOperations {
         // tslint:disable-next-line:no-unnecessary-initializer
         let nextToken: string | undefined = undefined
         do {
-            const params: S3.ListObjectsV2Request = {
+            const params: ListObjectsV2CommandInput = {
                 Bucket: this.taskParameters.bucketName,
                 Prefix: this.taskParameters.sourceFolder,
                 ContinuationToken: nextToken
             }
             try {
-                const s3Data = await this.s3Client.listObjectsV2(params).promise()
+                const s3Data = await this.s3Client.listObjectsV2(params)
                 nextToken = s3Data.NextContinuationToken
                 if (s3Data.Contents) {
                     s3Data.Contents.forEach(s3object => {

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import SNS = require('aws-sdk/clients/sns')
-import SQS = require('aws-sdk/clients/sqs')
+import { SNS } from '@aws-sdk/client-sns'
+import { SQS, SendMessageCommandInput } from '@aws-sdk/client-sqs'
 import tl = require('azure-pipelines-task-lib/task')
 import { TaskParameters } from './TaskParameters'
 
@@ -29,7 +29,7 @@ export class TaskOperations {
 
     private async verifyTopicExists(topicArn: string): Promise<void> {
         try {
-            await this.snsClient.getTopicAttributes({ TopicArn: topicArn }).promise()
+            await this.snsClient.getTopicAttributes({ TopicArn: topicArn })
         } catch (err) {
             throw new Error(tl.loc('TopicDoesNotExist', topicArn))
         }
@@ -37,7 +37,7 @@ export class TaskOperations {
 
     private async verifyQueueExists(queueUrl: string): Promise<void> {
         try {
-            await this.sqsClient.getQueueAttributes({ QueueUrl: queueUrl, AttributeNames: ['QueueArn'] }).promise()
+            await this.sqsClient.getQueueAttributes({ QueueUrl: queueUrl, AttributeNames: ['QueueArn'] })
         } catch (err) {
             throw new Error(tl.loc('QueueDoesNotExist', queueUrl))
         }
@@ -47,12 +47,10 @@ export class TaskOperations {
         console.log(tl.loc('SendingToTopic', this.taskParameters.topicArn))
 
         try {
-            await this.snsClient
-                .publish({
-                    TopicArn: this.taskParameters.topicArn,
-                    Message: this.taskParameters.message
-                })
-                .promise()
+            await this.snsClient.publish({
+                TopicArn: this.taskParameters.topicArn,
+                Message: this.taskParameters.message
+            })
         } catch (err) {
             throw new Error(tl.loc('SendError', err.message))
         }
@@ -60,7 +58,7 @@ export class TaskOperations {
 
     private async sendMessageToQueue(): Promise<void> {
         try {
-            const request: SQS.SendMessageRequest = {
+            const request: SendMessageCommandInput = {
                 QueueUrl: this.taskParameters.queueUrl,
                 MessageBody: this.taskParameters.message
             }
@@ -72,7 +70,7 @@ export class TaskOperations {
             } else {
                 console.log(tl.loc('SendingToQueue', this.taskParameters.queueUrl))
             }
-            await this.sqsClient.sendMessage(request).promise()
+            await this.sqsClient.sendMessage(request)
         } catch (err) {
             throw new Error(tl.loc('SendError', err.message))
         }

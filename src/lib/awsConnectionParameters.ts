@@ -5,8 +5,7 @@
 
 import * as tl from 'azure-pipelines-task-lib/task'
 
-import { STS } from 'aws-sdk/clients/all'
-import * as AWS from 'aws-sdk/global'
+import { AssumeRoleCommandInput, STS, STSClientConfig } from '@aws-sdk/client-sts';
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { format, parse, Url } from 'url'
 import { getHandlerFromToken, WebApi } from 'azure-devops-node-api'
@@ -74,7 +73,13 @@ function completeProxySetup(connectionParamaters: AWSConnectionParameters): void
 
         // do not want any auth in the logged url
         tl.debug(`Configuring task for proxy host ${proxy.host}, protocol ${proxy.protocol}`)
+        // JS SDK v3 does not support global configuration.
+        // Codemod has attempted to pass values to each service client in this file.
+        // You may need to update clients outside of this file, if they use global config.
         AWS.config.update({
+            // The transformation for httpOptions is not implemented.
+            // Refer to UPGRADING.md on aws-sdk-js-v3 for changes needed.
+            // Please create/upvote feature request on aws-sdk-js-codemod for httpOptions.
             httpOptions: { agent: new HttpsProxyAgent(format(proxy)) }
         })
     } catch (err) {
@@ -164,8 +169,13 @@ async function assumeRoleFromInstanceProfile(
             RoleArn: authInfo.assumeRoleArn,
             RoleSessionName: authInfo.roleSessionName
         }
-        const sts = new STS()
-        const data = await sts.assumeRole(params).promise()
+        const sts = new STS({
+            // The transformation for httpOptions is not implemented.
+            // Refer to UPGRADING.md on aws-sdk-js-v3 for changes needed.
+            // Please create/upvote feature request on aws-sdk-js-codemod for httpOptions.
+            httpOptions: { agent: new HttpsProxyAgent(format(proxy)) }
+        })
+        const data = await sts.assumeRole(params)
         return new AWS.Credentials({
             accessKeyId: data.Credentials!.AccessKeyId,
             secretAccessKey: data.Credentials!.SecretAccessKey,
@@ -197,7 +207,7 @@ async function attemptAssumeRoleFromOIDC(
 
             // We are most probably outside of AWS, so let's use the region defined by the user
             const region = await getRegion()
-            const stsClientConfig: STS.ClientConfiguration = {}
+            const stsClientConfig: STSClientConfig = {}
             if (region !== '') {
                 stsClientConfig.region = region
                 stsClientConfig.stsRegionalEndpoints = 'regional'
@@ -213,7 +223,7 @@ async function attemptAssumeRoleFromOIDC(
                 WebIdentityToken: idToken,
                 DurationSeconds: duration
             }
-            const data = await sts.assumeRoleWithWebIdentity(params).promise()
+            const data = await sts.assumeRoleWithWebIdentity(params)
             console.log('...role assumed via OIDC Token: %s', data.AssumedRoleUser?.Arn)
             return new AWS.Credentials({
                 accessKeyId: data.Credentials!.AccessKeyId,
@@ -289,7 +299,7 @@ function createEndpointCredentials(
         secretAccessKey: secretKey,
         sessionToken: token
     })
-    const options: STS.AssumeRoleRequest = {
+    const options: AssumeRoleCommandInput = {
         RoleArn: assumeRoleARN,
         DurationSeconds: duration,
         RoleSessionName: roleSessionName

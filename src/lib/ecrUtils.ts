@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import ECR = require('aws-sdk/clients/ecr')
+import { ECR, AuthorizationData } from '@aws-sdk/client-ecr'
 import tl = require('azure-pipelines-task-lib/task')
 import base64 = require('base-64')
 import { DockerHandler } from './dockerUtils'
@@ -23,10 +23,10 @@ export async function loginToRegistry(
     })
 }
 
-export async function getEcrAuthorizationData(ecrClient: ECR): Promise<ECR.AuthorizationData | undefined> {
+export async function getEcrAuthorizationData(ecrClient: ECR): Promise<AuthorizationData | undefined> {
     try {
         console.log(tl.loc('RequestingAuthToken'))
-        const response = await ecrClient.getAuthorizationToken().promise()
+        const response = await ecrClient.getAuthorizationToken()
 
         if (!response.authorizationData) {
             return undefined

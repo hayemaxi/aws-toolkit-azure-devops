@@ -3,7 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import SecretsManager = require('aws-sdk/clients/secretsmanager')
+import {
+    SecretsManager,
+    Tag,
+    CreateSecretCommandInput,
+    PutSecretValueCommandInput,
+    UpdateSecretCommandInput
+} from '@aws-sdk/client-secrets-manager'
 import tl = require('azure-pipelines-task-lib/task')
 import { SdkUtils } from 'lib/sdkutils'
 import fs = require('fs')
@@ -38,7 +44,7 @@ export class TaskOperations {
 
         // treat updating descrption et al about the secret as distinct from a value update
         if (this.taskParameters.description || this.taskParameters.kmsKeyId) {
-            const updateMetaRequest: SecretsManager.UpdateSecretRequest = {
+            const updateMetaRequest: UpdateSecretCommandInput = {
                 SecretId: this.taskParameters.secretNameOrId
             }
 
@@ -49,10 +55,10 @@ export class TaskOperations {
                 updateMetaRequest.KmsKeyId = this.taskParameters.kmsKeyId
             }
 
-            await this.secretsManagerClient.updateSecret(updateMetaRequest).promise()
+            await this.secretsManagerClient.updateSecret(updateMetaRequest)
         }
 
-        const updateValueRequest: SecretsManager.PutSecretValueRequest = {
+        const updateValueRequest: PutSecretValueCommandInput = {
             SecretId: this.taskParameters.secretNameOrId
         }
 
@@ -72,7 +78,7 @@ export class TaskOperations {
             }
         }
 
-        const response = await this.secretsManagerClient.putSecretValue(updateValueRequest).promise()
+        const response = await this.secretsManagerClient.putSecretValue(updateValueRequest)
 
         if (this.taskParameters.arnOutputVariable) {
             console.log(tl.loc('SettingArnOutputVariable', this.taskParameters.arnOutputVariable))
@@ -88,7 +94,7 @@ export class TaskOperations {
     private async createSecret(): Promise<void> {
         console.log(tl.loc('SecretNotFoundAutoCreating'))
 
-        const request: SecretsManager.CreateSecretRequest = {
+        const request: CreateSecretCommandInput = {
             Name: this.taskParameters.secretNameOrId,
             KmsKeyId: this.taskParameters.kmsKeyId
         }
@@ -111,10 +117,10 @@ export class TaskOperations {
         }
 
         if (this.taskParameters.tags && this.taskParameters.tags.length > 0) {
-            request.Tags = SdkUtils.getTags<SecretsManager.Tag[]>(this.taskParameters.tags)
+            request.Tags = SdkUtils.getTags<Tag[]>(this.taskParameters.tags)
         }
 
-        const response = await this.secretsManagerClient.createSecret(request).promise()
+        const response = await this.secretsManagerClient.createSecret(request)
 
         if (this.taskParameters.arnOutputVariable) {
             console.log(tl.loc('SettingArnOutputVariable', this.taskParameters.arnOutputVariable))

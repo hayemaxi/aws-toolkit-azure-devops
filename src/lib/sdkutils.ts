@@ -5,8 +5,8 @@
 
 import * as tl from 'azure-pipelines-task-lib/task'
 
-import { IAM, S3 } from 'aws-sdk/clients/all'
-import * as AWS from 'aws-sdk/global'
+import { IAM, S3 } from "aws-sdk"
+import * as AWS from "aws-sdk"
 import { AWSConnectionParameters, getCredentials, getRegion } from 'lib/awsConnectionParameters'
 import { VSTSTaskManifest } from 'lib/vstsUtils'
 import * as fs from 'fs'
@@ -205,23 +205,21 @@ export abstract class SdkUtils {
     ): Promise<string> {
         // use async call so we handle static vs instance credentials correctly
         return new Promise<string>((resolve, reject) => {
-            s3Client.getSignedUrl(
-                operation,
-                {
-                    Bucket: bucketName,
-                    Key: objectKey
-                },
-                function(err: any, url: string) {
-                    if (err) {
-                        console.log(`Failed to generate presigned url to template, error: ${err}`)
-                        reject(err)
-                    } else {
-                        console.log(`Generated url to template: ${url}`)
-                        resolve(url)
-                    }
+            // S3 getSignedUrl with callbacks is not supported in AWS SDK for JavaScript (v3).
+            // Please convert to 'client.getSignedUrl(apiName, options)', and re-run aws-sdk-js-codemod.
+            s3Client.getSignedUrl(operation, {
+                Bucket: bucketName,
+                Key: objectKey
+            }, function(err: any, url: string) {
+                if (err) {
+                    console.log(`Failed to generate presigned url to template, error: ${err}`)
+                    reject(err)
+                } else {
+                    console.log(`Generated url to template: ${url}`)
+                    resolve(url)
                 }
-            )
-        })
+            })
+        });
     }
 
     public static getTagsDictonary<T>(tags: string[]): T | undefined {

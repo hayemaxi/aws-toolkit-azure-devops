@@ -3,7 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import CloudFormation = require('aws-sdk/clients/cloudformation')
+
+
+import AWS_client_cloudformation = require('@aws-sdk/client-cloudformation');
+import waitUntilStackCreateComplete = AWS_client_cloudformation.waitUntilStackCreateComplete;
+import waitUntilStackUpdateComplete = AWS_client_cloudformation.waitUntilStackUpdateComplete;
+import CloudFormation = AWS_client_cloudformation.CloudFormation;
+import DescribeStacksCommandOutput = AWS_client_cloudformation.DescribeStacksCommandOutput;
 import tl = require('azure-pipelines-task-lib/task')
 
 export const defaultTimeoutInMins = 60
@@ -21,7 +27,6 @@ export async function captureStackOutputs(
         .describeStacks({
             StackName: stackName
         })
-        .promise()
 
     try {
         if (!response.Stacks) {
@@ -56,7 +61,7 @@ export async function captureStackOutputs(
 // It's not enough to know that the stack exists.
 export async function testStackHasResources(cloudFormationClient: CloudFormation, stackName: string): Promise<boolean> {
     try {
-        const response = await cloudFormationClient.describeStackResources({ StackName: stackName }).promise()
+        const response = await cloudFormationClient.describeStackResources({ StackName: stackName })
 
         return response.StackResources !== undefined && response.StackResources.length > 0
     } catch (err) {
@@ -72,7 +77,10 @@ export async function waitForStackUpdate(
     console.log(tl.loc('WaitingForStackUpdate', stackName))
     try {
         const params: any = setWaiterParams(stackName, timeoutInMins)
-        await cloudFormationClient.waitFor('stackUpdateComplete', params).promise()
+        await waitUntilStackUpdateComplete({
+            client: cloudFormationClient,
+            maxWaitTime: 200
+        }, params)
         console.log(tl.loc('StackUpdated', stackName))
     } catch (err) {
         throw new Error(tl.loc('StackUpdateFailed', stackName, (err as Error).message))
@@ -87,7 +95,10 @@ export async function waitForStackCreation(
     console.log(tl.loc('WaitingForStackCreation', stackName))
     try {
         const params: any = setWaiterParams(stackName, timeoutInMins)
-        await cloudFormationClient.waitFor('stackCreateComplete', params).promise()
+        await waitUntilStackCreateComplete({
+            client: cloudFormationClient,
+            maxWaitTime: 200
+        }, params)
         console.log(tl.loc('StackCreated', stackName))
     } catch (err) {
         throw new Error(tl.loc('StackCreationFailed', stackName, err.message))
@@ -119,11 +130,10 @@ export async function testStackExists(cloudFormationClient: CloudFormation, stac
     console.log(tl.loc('CheckingForStackExistence', stackName))
 
     try {
-        const response: CloudFormation.DescribeStacksOutput = await cloudFormationClient
+        const response: DescribeStacksCommandOutput = await cloudFormationClient
             .describeStacks({
                 StackName: stackName
             })
-            .promise()
         if (response.Stacks && response.Stacks.length > 0 && response.Stacks[0].StackId) {
             return response.Stacks[0].StackId
         }
@@ -143,7 +153,6 @@ export async function testChangeSetExists(
         console.log(tl.loc('CheckingForExistingChangeSet', changeSetName, stackName))
         const response = await cloudFormationClient
             .describeChangeSet({ ChangeSetName: changeSetName, StackName: stackName })
-            .promise()
         console.log(tl.loc('ChangeSetExists', changeSetName, response.Status))
 
         return true
@@ -168,8 +177,5 @@ export function isNoWorkToDoValidationError(errCodeOrStatus?: string, errMessage
 
     errCodeOrStatus = errCodeOrStatus || ''
     const message = errMessage || ''
-    return (
-        (errCodeOrStatus.search(/ValidationError/) !== -1 || errCodeOrStatus.search(/FAILED/) !== -1) &&
-        knownNoOpErrorMessages.some(element => message.search(element) !== -1)
-    )
+    return ((errCodeOrStatus.search(/ValidationError/) !== -1 || errCodeOrStatus.search(/FAILED/) !== -1) && knownNoOpErrorMessages.some(element => message.search(element) !== -1));
 }

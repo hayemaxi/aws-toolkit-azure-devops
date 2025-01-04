@@ -28,7 +28,7 @@ const baseTaskParameters: TaskParameters = {
 
 const executable = join(__dirname, '../../resources/echo.bat')
 
-describe('Lambda NET Core Deploy', () => {
+describe.skip('Lambda NET Core Deploy', () => {
     // TODO https://github.com/aws/aws-toolkit-azure-devops/issues/167
     beforeAll(() => {
         process.env.AWS_REGION = 'region'

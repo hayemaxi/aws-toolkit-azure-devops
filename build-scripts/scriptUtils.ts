@@ -14,3 +14,10 @@ export const packageRoot = path.join(repoRoot, 'package')
 export const packageTasks = path.join(packageRoot, 'Tasks')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 export const releaseVersion = require(path.join(repoRoot, 'package.json')).version
+
+export const header = `
+/*!
+ * Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: MIT
+ */
+`

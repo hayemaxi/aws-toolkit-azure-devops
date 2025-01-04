@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { getInput, getPathInput, getVariable, warning } from 'azure-pipelines-task-lib/task'
+import { getBoolInput, getInput, getPathInput, getVariable, warning } from 'azure-pipelines-task-lib/task'
+import { loc } from 'azure-pipelines-task-lib/task'
 import * as semver from 'semver'
 
 export interface VSTSManifestVersionInfo {
@@ -39,37 +40,92 @@ export function warnIfBuildAgentTooLow(): boolean {
  * errors without it, that is because the azure-pipelines-task-lib type annotations are wrong as of
  * version 2.8.0 .
  */
-export function getInputRequired(name: string): string {
-    const input = getInput(name, true)
-    if (!input) {
-        throw new Error('Unreachable code, required input returned undefined and did not throw!')
+// export function getInputRequired(name: string): string {
+//     const input = getInput(name, true)
+//     if (!input) {
+//         throw new Error('Unreachable code, required input returned undefined and did not throw!')
+//     }
+
+//     return input
+// }
+
+// export function getInputOptional(name: string): string | undefined {
+//     return getInput(name, false)
+// }
+
+// export function getInputOrEmpty(name: string): string {
+//     return getInput(name, false) || ''
+// }
+
+// export function getPathInputRequired(name: string): string {
+//     const input = getPathInput(name, true, false)
+//     if (!input) {
+//         throw new Error('unreachable code, required input returned undefined and did not throw!')
+//     }
+
+//     return input
+// }
+
+// export function getPathInputRequiredCheck(name: string): string {
+//     const input = getPathInput(name, true, true)
+//     if (!input) {
+//         throw new Error('unreachable code, required input returned undefined and did not throw!')
+//     }
+
+//     return input
+// }
+
+type StringTypeKeys<T> = Extract<keyof T, string> &
+    {
+        [P in keyof T]: T[P] extends string ? P : never
+    }[keyof T]
+
+type BooleanTypeKeys<T> = Extract<keyof T, string> &
+    {
+        [P in keyof T]: T[P] extends boolean ? P : never
+    }[keyof T]
+
+export class TaskInput<T> {
+    getInputRequired<K extends StringTypeKeys<T>>(name: K): T[K] {
+        const input = getInput(name, true) as T[K]
+        return this.verify(name, input)
     }
 
-    return input
-}
-
-export function getInputOptional(name: string): string | undefined {
-    return getInput(name, false)
-}
-
-export function getInputOrEmpty(name: string): string {
-    return getInput(name, false) || ''
-}
-
-export function getPathInputRequired(name: string): string {
-    const input = getPathInput(name, true, false)
-    if (!input) {
-        throw new Error('unreachable code, required input returned undefined and did not throw!')
+    getInputOptional<K extends StringTypeKeys<T>>(name: K): T[K] | undefined {
+        return getInput(name, false) as T[K]
     }
 
-    return input
-}
-
-export function getPathInputRequiredCheck(name: string): string {
-    const input = getPathInput(name, true, true)
-    if (!input) {
-        throw new Error('unreachable code, required input returned undefined and did not throw!')
+    getInputOrEmpty<K extends StringTypeKeys<T>>(name: K): T[K] | '' {
+        return (getInput(name, false) as T[K]) ?? ''
     }
 
-    return input
+    getPathInputRequired<K extends StringTypeKeys<T>>(name: K): string {
+        const input = getPathInput(name, true, false)
+        return this.verify(name, input)
+    }
+
+    getPathInputRequiredCheck<K extends StringTypeKeys<T>>(name: K): string {
+        const input = getPathInput(name, true, true)
+        return this.verify(name, input)
+    }
+
+    getBoolInputOptional<K extends BooleanTypeKeys<T>>(name: K): boolean {
+        return getBoolInput(name, false)
+    }
+
+    getBoolInputRequired<K extends BooleanTypeKeys<T>>(name: K): boolean {
+        const input = getBoolInput(name, true)
+        return this.verify(name, input)
+    }
+
+    private verify(name: string, val: any): typeof val {
+        if (val === undefined) {
+            throw new Error(`Input property '${name}' is undefined but required for the task.`)
+        }
+        return val
+    }
+}
+
+export function typedLoc<T extends string>(name: T, ...params: any[]): string {
+    return loc(name, ...params)
 }

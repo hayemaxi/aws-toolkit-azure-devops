@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import CloudFormation = require('aws-sdk/clients/cloudformation')
+
+
+import AWS_client_cloudformation = require('@aws-sdk/client-cloudformation');
+import waitUntilStackDeleteComplete = AWS_client_cloudformation.waitUntilStackDeleteComplete;
+import CloudFormation = AWS_client_cloudformation.CloudFormation;
 import * as tl from 'azure-pipelines-task-lib/task'
 import { TaskParameters } from './TaskParameters'
 
@@ -21,7 +25,6 @@ export class TaskOperations {
             .deleteStack({
                 StackName: this.taskParameters.stackName
             })
-            .promise()
         await this.waitForStackDeletion(this.taskParameters.stackName)
 
         console.log(tl.loc('TaskCompleted'))
@@ -29,7 +32,7 @@ export class TaskOperations {
 
     private async verifyResourcesExist(stackName: string): Promise<void> {
         try {
-            await this.cloudFormationClient.describeStacks({ StackName: stackName }).promise()
+            await this.cloudFormationClient.describeStacks({ StackName: stackName })
         } catch (err) {
             throw new Error(tl.loc('StackDoesNotExist', stackName))
         }
@@ -38,7 +41,10 @@ export class TaskOperations {
     private async waitForStackDeletion(stackName: string): Promise<void> {
         console.log(tl.loc('WaitingForStackDeletion', stackName))
         try {
-            await this.cloudFormationClient.waitFor('stackDeleteComplete', { StackName: stackName }).promise()
+            await waitUntilStackDeleteComplete({
+                client: this.cloudFormationClient,
+                maxWaitTime: 200
+            }, { StackName: stackName })
             console.log(tl.loc('StackDeleted'))
         } catch (err) {
             throw new Error(tl.loc('StackDeletionFailed', stackName, (err as Error).message))

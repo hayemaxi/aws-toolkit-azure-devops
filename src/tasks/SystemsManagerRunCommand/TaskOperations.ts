@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-import SSM = require('aws-sdk/clients/ssm')
+
+
+import { SSM, Target, SendCommandCommandInput } from '@aws-sdk/client-ssm'
 import tl = require('azure-pipelines-task-lib/task')
 import { fromBuildVariable, fromInstanceIds, fromTags, TaskParameters } from './TaskParameters'
 
@@ -11,7 +13,7 @@ export class TaskOperations {
     public constructor(public readonly ssmClient: SSM, public readonly taskParameters: TaskParameters) {}
 
     public async execute(): Promise<void> {
-        const request: SSM.SendCommandRequest = {
+        const request: SendCommandCommandInput = {
             DocumentName: this.taskParameters.documentName
         }
         if (this.taskParameters.outputS3KeyPrefix) {
@@ -58,7 +60,7 @@ export class TaskOperations {
                 // TODO repalce with getTags when https://github.com/aws/aws-toolkit-azure-devops/pull/184 merges
                 this.taskParameters.instanceTags.forEach(it => {
                     const kv = it.split('=')
-                    const t: SSM.Target = {}
+                    const t: Target = {}
                     t.Key = 'tag:' + kv[0].trim()
                     t.Values = kv[1].split(',')
                     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -87,7 +89,7 @@ export class TaskOperations {
             }
         }
 
-        const response = await this.ssmClient.sendCommand(request).promise()
+        const response = await this.ssmClient.sendCommand(request)
         let commandId = ''
         if (response.Command) {
             commandId = `${response.Command.CommandId}`

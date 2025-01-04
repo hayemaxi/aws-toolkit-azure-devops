@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import SecretsManager = require('aws-sdk/clients/secretsmanager')
+import { SecretsManager, GetSecretValueCommandInput } from '@aws-sdk/client-secrets-manager'
 import tl = require('azure-pipelines-task-lib/task')
 import base64 = require('base-64')
 import { TaskParameters } from './TaskParameters'
@@ -17,7 +17,7 @@ export class TaskOperations {
     public async execute(): Promise<void> {
         console.log(tl.loc('RetrievingSecret', this.taskParameters.secretIdOrName))
 
-        const request: SecretsManager.GetSecretValueRequest = {
+        const request: GetSecretValueCommandInput = {
             SecretId: this.taskParameters.secretIdOrName
         }
 
@@ -27,7 +27,7 @@ export class TaskOperations {
             request.VersionStage = this.taskParameters.versionStage
         }
 
-        const response = await this.secretsManagerClient.getSecretValue(request).promise()
+        const response = await this.secretsManagerClient.getSecretValue(request)
         if (response.SecretString) {
             tl.setVariable(this.taskParameters.variableName, response.SecretString, true)
         } else {

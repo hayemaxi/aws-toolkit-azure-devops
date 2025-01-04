@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-import SSM = require('aws-sdk/clients/ssm')
+
+
+import AWS_client_ssm = require('@aws-sdk/client-ssm');
+import SSM = AWS_client_ssm.SSM;
 import tl = require('azure-pipelines-task-lib/task')
 import { readModeHierarchy, readModeSingle, transformParameterToVariableName } from 'lib/ssm'
 import { TaskParameters } from './TaskParameters'
@@ -42,7 +45,6 @@ export class TaskOperations {
                 Name: parameterName,
                 WithDecryption: true
             })
-            .promise()
 
         let isSecret = false
         let value = `${undefined}`
@@ -76,7 +78,6 @@ export class TaskOperations {
                     WithDecryption: true,
                     NextToken: nextToken
                 })
-                .promise()
 
             if (!response.Parameters) {
                 tl.error(tl.loc('ErrorParametersEmpty'))

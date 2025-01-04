@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import * as S3 from 'aws-sdk/clients/s3'
+import { Upload } from '@aws-sdk/lib-storage';
+import { PutObjectCommandInput, S3 } from '@aws-sdk/client-s3';
 import * as tl from 'azure-pipelines-task-lib/task'
 import { testBucketExists } from 'lib/s3'
 import * as fs from 'fs'
@@ -60,7 +61,7 @@ export class TaskOperations {
 
         try {
             console.log(tl.loc('BucketNotExistCreating', bucketName, region))
-            await this.s3Client.createBucket({ Bucket: bucketName }).promise()
+            await this.s3Client.createBucket({ Bucket: bucketName })
             console.log(tl.loc('BucketCreated'))
         } catch (err) {
             console.log(tl.loc('CreateBucketFailure'), err)
@@ -85,7 +86,7 @@ export class TaskOperations {
         return ''
     }
 
-    private buildS3Request(request: S3.PutObjectRequest, matchedFile: string) {
+    private buildS3Request(request: PutObjectCommandInput, matchedFile: string) {
         if (this.taskParameters.contentEncoding) {
             request.ContentEncoding = this.taskParameters.contentEncoding
         }
@@ -183,7 +184,7 @@ export class TaskOperations {
                     }
                     console.log(tl.loc('UploadingFile', matchedFile, contentType))
 
-                    const request: S3.PutObjectRequest = {
+                    const request: PutObjectCommandInput = {
                         Bucket: this.taskParameters.bucketName,
                         Key: targetPath,
                         Body: fileBuffer,
@@ -193,7 +194,10 @@ export class TaskOperations {
 
                     this.buildS3Request(request, matchedFile)
 
-                    await this.s3Client.upload(request).promise()
+                    await new Upload({
+                        client: this.s3Client,
+                        params: request
+                    }).done()
                     console.log(tl.loc('FileUploadCompleted', matchedFile, targetPath))
                 } catch (err) {
                     console.error(tl.loc('FileUploadFailed'), err)

@@ -5,14 +5,16 @@
 
 import * as tl from 'azure-pipelines-task-lib/task'
 
-import { ElasticBeanstalk, S3 } from 'aws-sdk/clients/all'
+import { ElasticBeanstalk } from '@aws-sdk/client-elastic-beanstalk'
+import { Upload } from '@aws-sdk/lib-storage'
+import { S3 } from '@aws-sdk/client-s3'
 import fs = require('fs')
 import path = require('path')
 import AdmZip = require('adm-zip')
 
 export class BeanstalkUtils {
     public static async determineS3Bucket(beanstalkClient: ElasticBeanstalk): Promise<string> {
-        const response = await beanstalkClient.createStorageLocation().promise()
+        const response = await beanstalkClient.createStorageLocation()
         console.log(tl.loc('DeterminedBucket', response.S3Bucket))
 
         if (!response.S3Bucket) {
@@ -137,13 +139,15 @@ export class BeanstalkUtils {
                 }
             })
 
-            await s3Client
-                .upload({
+            await new Upload({
+                client: s3Client,
+
+                params: {
                     Bucket: bucketName,
                     Key: objectKey,
                     Body: readStream
-                })
-                .promise()
+                }
+            }).done()
             console.log(tl.loc('BundleUploadCompleted'))
         } catch (err) {
             console.error(tl.loc('BundleUploadFailed', err))
@@ -158,11 +162,9 @@ export class BeanstalkUtils {
         let appExists = false
 
         try {
-            const response = await beanstalkClient
-                .describeApplications({
-                    ApplicationNames: [applicationName]
-                })
-                .promise()
+            const response = await beanstalkClient.describeApplications({
+                ApplicationNames: [applicationName]
+            })
 
             if (response.Applications) {
                 tl.debug(`Query for application ${applicationName} yield ${response.Applications.length} items`)
@@ -196,13 +198,11 @@ export class BeanstalkUtils {
         let envExists = false
 
         try {
-            const response = await beanstalkClient
-                .describeEnvironments({
-                    ApplicationName: applicationName,
-                    EnvironmentNames: [environmentName],
-                    IncludeDeleted: false
-                })
-                .promise()
+            const response = await beanstalkClient.describeEnvironments({
+                ApplicationName: applicationName,
+                EnvironmentNames: [environmentName],
+                IncludeDeleted: false
+            })
 
             if (response.Environments) {
                 tl.debug(`Query for environment ${environmentName} yielded ${response.Environments.length} items`)
